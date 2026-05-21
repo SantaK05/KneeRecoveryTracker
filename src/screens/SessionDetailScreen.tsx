@@ -1,6 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo } from 'react';
 import {
-  View, Text, SectionList, StyleSheet, SafeAreaView,
+  View, Text, SectionList, StyleSheet,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HistoryStackParamList } from '../navigation/types';

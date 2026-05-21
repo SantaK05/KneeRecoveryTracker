@@ -16,6 +16,15 @@ import {
   HistorySession,
 } from '../types';
 
+
+function randomUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ── State ────────────────────────────────────────────────────────────────────
 
 interface WorkoutState {
@@ -123,7 +132,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startSession = useCallback((scheda: Scheda) => {
-    const id  = crypto.randomUUID();
+    const id  = randomUUID();
     const now = new Date().toISOString();
     const session: ActiveSession = {
       id,
@@ -150,7 +159,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     const sessionId = stateRef.current.currentSession?.id;
     if (!sessionId) return;
 
-    const id       = crypto.randomUUID();
+    const id       = randomUUID();
     const loggedAt = new Date().toISOString();
     const set: SetRecord = { ...data, id, loggedAt };
 
@@ -189,7 +198,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       if (e1) throw e1;
 
       const { error: e2 } = await supabase.from('session_feedback').insert({
-        id:            crypto.randomUUID(),
+        id:            randomUUID(),
         session_id:    sessionId,
         difficulty:    feedback.difficulty,
         energy:        feedback.energy,
