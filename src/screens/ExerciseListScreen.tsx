@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet,
@@ -13,10 +13,38 @@ import { colors, spacing } from '../constants';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseList'>;
 
+function formatHHMMSS(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+}
+
 export function ExerciseListScreen({ navigation }: Props) {
-  const { state } = useWorkout();
+  const { state, pauseSessionTimer, resumeSessionTimer } = useWorkout();
   const scheda = state.selectedScheda!;
   const isUpperBody = !['B', 'D'].includes(scheda);
+  const activeRest   = state.activeRest;
+  const sessionTimer = state.sessionTimer;
+
+  // Re-render every second while timer is running
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!sessionTimer?.runningFrom) return;
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [sessionTimer?.runningFrom]);
+
+  const sessionIsRunning = sessionTimer !== null && sessionTimer.runningFrom !== null;
+  const sessionElapsedMs = sessionTimer
+    ? sessionTimer.accumulatedMs + (sessionTimer.runningFrom !== null ? Date.now() - sessionTimer.runningFrom : 0)
+    : 0;
+  const sessionFormattedTime = formatHHMMSS(Math.floor(sessionElapsedMs / 1000));
+
+  const toggleTimer = useCallback(() => {
+    if (sessionIsRunning) pauseSessionTimer();
+    else resumeSessionTimer();
+  }, [sessionIsRunning, pauseSessionTimer, resumeSessionTimer]);
 
   const [showKneeRoutine, setShowKneeRoutine] = useState(false);
 
@@ -72,12 +100,34 @@ export function ExerciseListScreen({ navigation }: Props) {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          isUpperBody ? (
-            <View style={styles.upperBodyBanner}>
-              <Text style={styles.upperBodyText}>Scheda {scheda} — Upper Body</Text>
-              <Text style={styles.upperBodySub}>Nessun esercizio lower body in questa scheda.</Text>
-            </View>
-          ) : null
+          <View>
+            <TouchableOpacity style={styles.timerCard} onPress={toggleTimer} activeOpacity={0.8}>
+              <Text style={styles.timerLabel}>
+                {sessionIsRunning ? 'Sessione in corso' : 'Sessione in pausa'}
+              </Text>
+              <Text style={styles.timerValue}>{sessionFormattedTime}</Text>
+              <View style={[styles.timerIndicator, sessionIsRunning && styles.timerActive]} />
+            </TouchableOpacity>
+            {activeRest && (
+              <TouchableOpacity
+                style={styles.restBanner}
+                onPress={() => navigation.navigate('ExerciseDetail', { exerciseIndex: activeRest.exerciseIndex })}
+                activeOpacity={0.8}
+              >
+                <View style={styles.restBannerLeft}>
+                  <View style={styles.restBannerDot} />
+                  <Text style={styles.restBannerText}>Riposo in corso</Text>
+                </View>
+                <Text style={styles.restBannerCta}>Torna →</Text>
+              </TouchableOpacity>
+            )}
+            {isUpperBody && (
+              <View style={styles.upperBodyBanner}>
+                <Text style={styles.upperBodyText}>Scheda {scheda} — Upper Body</Text>
+                <Text style={styles.upperBodySub}>Nessun esercizio lower body in questa scheda.</Text>
+              </View>
+            )}
+          </View>
         }
         ListFooterComponent={
           <View style={styles.footer}>
@@ -184,6 +234,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color:      colors.textSecondary,
   },
+  timerCard: {
+    backgroundColor: colors.surface,
+    borderRadius:    20,
+    padding:         spacing.xl,
+    alignItems:      'center',
+    marginBottom:    spacing.md,
+    borderWidth:     1,
+    borderColor:     colors.border,
+    position:        'relative',
+    overflow:        'hidden',
+  },
+  timerLabel: {
+    fontSize:     13,
+    color:        colors.textMuted,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  timerValue: {
+    fontSize:      48,
+    fontWeight:    '700',
+    color:         colors.text,
+    letterSpacing: -1,
+  },
+  timerIndicator: {
+    position:        'absolute',
+    bottom:          0,
+    left:            0,
+    right:           0,
+    height:          3,
+    backgroundColor: colors.border,
+    borderRadius:    1.5,
+  },
+  timerActive: {
+    backgroundColor: colors.accent,
+  },
   upperBodyBanner: {
     backgroundColor: colors.surfaceHighlight,
     borderRadius:    14,
@@ -238,5 +324,37 @@ const styles = StyleSheet.create({
     fontSize:   16,
     fontWeight: '700',
     color:      '#FFFFFF',
+  },
+  restBanner: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: colors.surface,
+    borderRadius:    14,
+    padding:         spacing.md,
+    marginBottom:    spacing.md,
+    borderWidth:     1,
+    borderColor:     colors.accent + '80',
+  },
+  restBannerLeft: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.sm,
+  },
+  restBannerDot: {
+    width:           8,
+    height:          8,
+    borderRadius:    4,
+    backgroundColor: colors.accent,
+  },
+  restBannerText: {
+    fontSize:   15,
+    fontWeight: '600',
+    color:      colors.text,
+  },
+  restBannerCta: {
+    fontSize:   14,
+    fontWeight: '600',
+    color:      colors.accent,
   },
 });

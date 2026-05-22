@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform,
@@ -18,7 +18,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseDetail'>;
 
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseIndex } = route.params;
-  const { state, logSet } = useWorkout();
+  const { state, logSet, startActiveRest, clearActiveRest } = useWorkout();
   const scheda = state.selectedScheda!;
 
   // Always include knee routine so indices from ExerciseListScreen resolve correctly
@@ -44,8 +44,24 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   const [restDuration, setRestDuration] = useState(exercise.restSecMax || 90);
   const [timerVisible, setTimerVisible] = useState(false);
 
-  const onTimerComplete = useCallback(() => setTimerVisible(false), []);
+  const onTimerComplete = useCallback(() => {
+    setTimerVisible(false);
+    clearActiveRest();
+  }, [clearActiveRest]);
   const restTimer = useRestTimer(onTimerComplete);
+
+  // Restore a running timer if context has one for this exercise
+  useEffect(() => {
+    const ar = state.activeRest;
+    if (!ar || ar.exerciseIndex !== exerciseIndex) return;
+    const remaining = Math.max(0, Math.round((ar.endsAt - Date.now()) / 1000));
+    if (remaining > 0) {
+      restTimer.startTimer(remaining);
+      setTimerVisible(true);
+    } else {
+      clearActiveRest();
+    }
+  }, []); // run once on mount only
 
   const handleLogSet = useCallback(async () => {
     if (allDone) return;
@@ -73,10 +89,12 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
     if (restDuration > 0) {
       restTimer.startTimer(restDuration);
       setTimerVisible(true);
+      startActiveRest(exerciseIndex, restDuration);
     }
   }, [
     allDone, weightInput, repsInput, noteInput,
     exercise, nextSetNumber, logSet, restDuration, restTimer,
+    startActiveRest, exerciseIndex,
   ]);
 
   const handleAdjustDuration = useCallback((delta: number) => {
@@ -86,7 +104,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   const handleSkip = useCallback(() => {
     restTimer.stop();
     setTimerVisible(false);
-  }, [restTimer]);
+    clearActiveRest();
+  }, [restTimer, clearActiveRest]);
 
   if (!exercise) return null;
 

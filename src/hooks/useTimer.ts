@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 
 function formatHHMMSS(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -8,31 +9,61 @@ function formatHHMMSS(sec: number): string {
 }
 
 export function useTimer() {
-  const [elapsed, setElapsed] = useState(0);
-  const [running, setRunning] = useState(false);
-  const elapsedRef = useRef(0);
+  const segmentStartMsRef = useRef<number | null>(null);
+  const accumulatedMsRef  = useRef<number>(0);
+
+  const getElapsedMs = (): number => {
+    const seg = segmentStartMsRef.current;
+    return accumulatedMsRef.current + (seg !== null ? Date.now() - seg : 0);
+  };
+
+  const [isRunning, setIsRunning] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  const refresh = useCallback(() => {
+    setElapsedSec(Math.floor(getElapsedMs() / 1000));
+  }, []);
 
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      elapsedRef.current += 1;
-      setElapsed(elapsedRef.current);
-    }, 1000);
+    if (!isRunning) return;
+    const id = setInterval(refresh, 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [isRunning, refresh]);
 
-  const start  = useCallback(() => setRunning(true), []);
-  const stop   = useCallback(() => setRunning(false), []);
-  const reset  = useCallback(() => {
-    setRunning(false);
-    elapsedRef.current = 0;
-    setElapsed(0);
+  useEffect(() => {
+    const handler = (next: AppStateStatus) => {
+      if (next === 'active') refresh();
+    };
+    const sub = AppState.addEventListener('change', handler);
+    return () => sub.remove();
+  }, [refresh]);
+
+  const start = useCallback(() => {
+    if (segmentStartMsRef.current !== null) return;
+    segmentStartMsRef.current = Date.now();
+    setIsRunning(true);
+    refresh();
+  }, [refresh]);
+
+  const stop = useCallback(() => {
+    if (segmentStartMsRef.current === null) return;
+    accumulatedMsRef.current += Date.now() - segmentStartMsRef.current;
+    segmentStartMsRef.current = null;
+    setIsRunning(false);
+    refresh();
+  }, [refresh]);
+
+  const reset = useCallback(() => {
+    segmentStartMsRef.current = null;
+    accumulatedMsRef.current  = 0;
+    setIsRunning(false);
+    setElapsedSec(0);
   }, []);
 
   return {
-    isRunning:     running,
-    elapsedSec:    elapsed,
-    formattedTime: formatHHMMSS(elapsed),
+    isRunning,
+    elapsedSec,
+    formattedTime: formatHHMMSS(elapsedSec),
     start,
     stop,
     reset,

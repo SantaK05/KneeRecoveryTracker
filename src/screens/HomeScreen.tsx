@@ -8,7 +8,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../navigation/types';
 import { WorkoutCard } from '../components/WorkoutCard';
 import { useWorkout } from '../context/WorkoutContext';
-import { useTimer } from '../hooks/useTimer';
 import { colors, spacing } from '../constants';
 import { Scheda } from '../types';
 
@@ -26,7 +25,6 @@ const italianDate = (): string =>
 
 export function HomeScreen({ navigation }: Props) {
   const { state, selectScheda, startSession } = useWorkout();
-  const timer = useTimer();
 
   const handleStartWorkout = useCallback(() => {
     if (!state.selectedScheda) return;
@@ -34,9 +32,9 @@ export function HomeScreen({ navigation }: Props) {
     navigation.navigate('ExerciseList');
   }, [state.selectedScheda, startSession, navigation]);
 
-  const toggleTimer = useCallback(() => {
-    timer.isRunning ? timer.stop() : timer.start();
-  }, [timer]);
+  const handleResumeWorkout = useCallback(() => {
+    navigation.navigate('ExerciseList');
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -52,14 +50,19 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={styles.date}>{italianDate()}</Text>
         </View>
 
-        {/* Session Timer */}
-        <TouchableOpacity style={styles.timerCard} onPress={toggleTimer} activeOpacity={0.8}>
-          <Text style={styles.timerLabel}>
-            {timer.isRunning ? 'Sessione in corso' : 'Tocca per avviare il timer'}
-          </Text>
-          <Text style={styles.timerValue}>{timer.formattedTime}</Text>
-          <View style={[styles.timerIndicator, timer.isRunning && styles.timerActive]} />
-        </TouchableOpacity>
+        {/* Resume banner when a session is already active */}
+        {state.currentSession && (
+          <TouchableOpacity style={styles.resumeCard} onPress={handleResumeWorkout} activeOpacity={0.8}>
+            <View style={styles.resumeCardLeft}>
+              <View style={styles.resumeDot} />
+              <View>
+                <Text style={styles.resumeTitle}>Allenamento in corso</Text>
+                <Text style={styles.resumeSub}>Scheda {state.currentSession.scheda} · Tocca per riprendere</Text>
+              </View>
+            </View>
+            <Text style={styles.resumeArrow}>→</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Scheda Selector */}
         <Text style={styles.sectionTitle}>Seleziona Scheda</Text>
@@ -119,42 +122,6 @@ const styles = StyleSheet.create({
     color:      colors.textSecondary,
     textTransform: 'capitalize',
   },
-  timerCard: {
-    backgroundColor: colors.surface,
-    borderRadius:    20,
-    padding:         spacing.xl,
-    alignItems:      'center',
-    marginBottom:    spacing.xl,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    position:        'relative',
-    overflow:        'hidden',
-  },
-  timerLabel: {
-    fontSize:     13,
-    color:        colors.textMuted,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  timerValue: {
-    fontSize:      48,
-    fontWeight:    '700',
-    color:         colors.text,
-    letterSpacing: -1,
-  },
-  timerIndicator: {
-    position:        'absolute',
-    bottom:          0,
-    left:            0,
-    right:           0,
-    height:          3,
-    backgroundColor: colors.border,
-    borderRadius:    1.5,
-  },
-  timerActive: {
-    backgroundColor: colors.accent,
-  },
   sectionTitle: {
     fontSize:     16,
     fontWeight:   '600',
@@ -185,5 +152,44 @@ const styles = StyleSheet.create({
     fontSize:   17,
     fontWeight: '700',
     color:      '#FFFFFF',
+  },
+  resumeCard: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: colors.surface,
+    borderRadius:    16,
+    padding:         spacing.md,
+    marginBottom:    spacing.xl,
+    borderWidth:     1,
+    borderColor:     colors.accent + '80',
+  },
+  resumeCardLeft: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.md,
+    flex:          1,
+  },
+  resumeDot: {
+    width:           10,
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: colors.accent,
+    flexShrink:      0,
+  },
+  resumeTitle: {
+    fontSize:     15,
+    fontWeight:   '600',
+    color:        colors.text,
+    marginBottom: 2,
+  },
+  resumeSub: {
+    fontSize: 13,
+    color:    colors.textMuted,
+  },
+  resumeArrow: {
+    fontSize:   18,
+    color:      colors.accent,
+    fontWeight: '600',
   },
 });
