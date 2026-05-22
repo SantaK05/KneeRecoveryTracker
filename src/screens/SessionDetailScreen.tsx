@@ -2,6 +2,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useMemo } from 'react';
 import {
   View, Text, SectionList, StyleSheet,
+  TouchableOpacity, Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HistoryStackParamList } from '../navigation/types';
@@ -32,9 +33,9 @@ function formatDuration(startTs: string, endTs: string): string {
   return m === 0 ? `${h}h` : `${h}h ${m}min`;
 }
 
-export function SessionDetailScreen({ route }: Props) {
+export function SessionDetailScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
-  const { state } = useWorkout();
+  const { state, deleteSession } = useWorkout();
 
   const session = useMemo(
     () => state.sessions.find(s => s.id === sessionId) as HistorySession | undefined,
@@ -58,6 +59,24 @@ export function SessionDetailScreen({ route }: Props) {
       data:    session.sets.filter(s => s.exerciseName === name),
     }));
   }, [session]);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Elimina sessione',
+      'Sei sicuro di voler eliminare questa sessione? L\'operazione non è reversibile.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteSession(sessionId);
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  };
 
   if (!session) {
     return (
@@ -132,6 +151,11 @@ export function SessionDetailScreen({ route }: Props) {
 
             <Text style={styles.exercisesTitle}>Esercizi</Text>
           </View>
+        }
+        ListFooterComponent={
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.75}>
+            <Text style={styles.deleteButtonText}>Elimina sessione</Text>
+          </TouchableOpacity>
         }
         contentContainerStyle={styles.content}
       />
@@ -287,5 +311,18 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color:    colors.textMuted,
+  },
+  deleteButton: {
+    marginTop:       spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius:    12,
+    borderWidth:     1,
+    borderColor:     colors.error,
+    alignItems:      'center',
+  },
+  deleteButtonText: {
+    fontSize:   15,
+    fontWeight: '600',
+    color:      colors.error,
   },
 });

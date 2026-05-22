@@ -32,6 +32,8 @@ interface WorkoutState {
   currentSession: ActiveSession | null;
   sessions: HistorySession[];
   historyLoaded: boolean;
+  activeRest: { exerciseIndex: number; endsAt: number } | null;
+  sessionTimer: { accumulatedMs: number; runningFrom: number | null } | null;
 }
 
 const initialState: WorkoutState = {
@@ -39,6 +41,8 @@ const initialState: WorkoutState = {
   currentSession: null,
   sessions:       [],
   historyLoaded:  false,
+  activeRest:     null,
+  sessionTimer:   null,
 };
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -48,7 +52,12 @@ type WorkoutAction =
   | { type: 'START_SESSION'; session: ActiveSession }
   | { type: 'LOG_SET'; set: SetRecord }
   | { type: 'END_SESSION'; endTs: string; feedback: SessionFeedback }
-  | { type: 'SET_HISTORY'; sessions: HistorySession[] };
+  | { type: 'SET_HISTORY'; sessions: HistorySession[] }
+  | { type: 'START_ACTIVE_REST'; exerciseIndex: number; endsAt: number }
+  | { type: 'CLEAR_ACTIVE_REST' }
+  | { type: 'PAUSE_SESSION_TIMER'; pausedAt: number }
+  | { type: 'RESUME_SESSION_TIMER'; resumedAt: number }
+  | { type: 'DELETE_SESSION'; sessionId: string };
 
 function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
   switch (action.type) {
@@ -56,7 +65,11 @@ function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
       return { ...state, selectedScheda: action.scheda };
 
     case 'START_SESSION':
-      return { ...state, currentSession: action.session };
+      return {
+        ...state,
+        currentSession: action.session,
+        sessionTimer:   { accumulatedMs: 0, runningFrom: new Date(action.session.startTs).getTime() },
+      };
 
     case 'LOG_SET':
       if (!state.currentSession) return state;
@@ -78,12 +91,33 @@ function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
       return {
         ...state,
         currentSession: null,
+        activeRest:     null,
+        sessionTimer:   null,
         sessions:       [completed, ...state.sessions],
       };
     }
 
     case 'SET_HISTORY':
       return { ...state, sessions: action.sessions, historyLoaded: true };
+
+    case 'START_ACTIVE_REST':
+      return { ...state, activeRest: { exerciseIndex: action.exerciseIndex, endsAt: action.endsAt } };
+
+    case 'CLEAR_ACTIVE_REST':
+      return { ...state, activeRest: null };
+
+    case 'PAUSE_SESSION_TIMER': {
+      if (!state.sessionTimer || state.sessionTimer.runningFrom === null) return state;
+      const addedMs = action.pausedAt - state.sessionTimer.runningFrom;
+      return { ...state, sessionTimer: { accumulatedMs: state.sessionTimer.accumulatedMs + addedMs, runningFrom: null } };
+    }
+
+    case 'RESUME_SESSION_TIMER':
+      if (!state.sessionTimer || state.sessionTimer.runningFrom !== null) return state;
+      return { ...state, sessionTimer: { ...state.sessionTimer, runningFrom: action.resumedAt } };
+
+    case 'DELETE_SESSION':
+      return { ...state, sessions: state.sessions.filter(s => s.id !== action.sessionId) };
 
     default:
       return state;
@@ -115,7 +149,12 @@ interface WorkoutContextValue {
   startSession:    (scheda: Scheda) => void;
   logSet:          (data: Omit<SetRecord, 'id' | 'loggedAt'>) => void;
   endSession:      (feedback: SessionFeedback) => void;
+  deleteSession:   (sessionId: string) => Promise<void>;
   loadHistory:     () => Promise<void>;
+  startActiveRest:    (exerciseIndex: number, durationSec: number) => void;
+  clearActiveRest:    () => void;
+  pauseSessionTimer:  () => void;
+  resumeSessionTimer: () => void;
 }
 
 const WorkoutContext = createContext<WorkoutContextValue | null>(null);
@@ -211,6 +250,28 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const deleteSession = useCallback(async (sessionId: string) => {
+    dispatch({ type: 'DELETE_SESSION', sessionId });
+    const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId);
+    if (error) console.error('[Supabase] deleteSession failed:', error);
+  }, []);
+
+  const startActiveRest = useCallback((exerciseIndex: number, durationSec: number) => {
+    dispatch({ type: 'START_ACTIVE_REST', exerciseIndex, endsAt: Date.now() + durationSec * 1000 });
+  }, []);
+
+  const clearActiveRest = useCallback(() => {
+    dispatch({ type: 'CLEAR_ACTIVE_REST' });
+  }, []);
+
+  const pauseSessionTimer = useCallback(() => {
+    dispatch({ type: 'PAUSE_SESSION_TIMER', pausedAt: Date.now() });
+  }, []);
+
+  const resumeSessionTimer = useCallback(() => {
+    dispatch({ type: 'RESUME_SESSION_TIMER', resumedAt: Date.now() });
+  }, []);
+
   const loadHistory = useCallback(async () => {
     const { data, error } = await supabase
       .from('workout_sessions')
@@ -261,7 +322,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkoutContext.Provider
-      value={{ state, selectScheda, startSession, logSet, endSession, loadHistory }}
+      value={{ state, selectScheda, startSession, logSet, endSession, deleteSession, loadHistory, startActiveRest, clearActiveRest, pauseSessionTimer, resumeSessionTimer }}
     >
       {children}
     </WorkoutContext.Provider>
