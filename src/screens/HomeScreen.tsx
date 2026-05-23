@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar,
@@ -7,6 +7,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../navigation/types';
 import { WorkoutCard } from '../components/WorkoutCard';
+import { WorkoutPreviewModal } from '../components/WorkoutPreviewModal';
 import { useWorkout } from '../context/WorkoutContext';
 import { colors, spacing } from '../constants';
 import { Scheda } from '../types';
@@ -25,6 +26,7 @@ const italianDate = (): string =>
 
 export function HomeScreen({ navigation }: Props) {
   const { state, selectScheda, startSession } = useWorkout();
+  const [previewScheda, setPreviewScheda] = useState<Scheda | null>(null);
 
   const handleStartWorkout = useCallback(() => {
     if (!state.selectedScheda) return;
@@ -78,9 +80,15 @@ export function HomeScreen({ navigation }: Props) {
               scheda={s}
               isSelected={state.selectedScheda === s}
               onPress={() => selectScheda(s)}
+              onInfoPress={() => setPreviewScheda(s)}
             />
           ))}
         </ScrollView>
+
+        <WorkoutPreviewModal
+          scheda={previewScheda}
+          onClose={() => setPreviewScheda(null)}
+        />
 
         {/* Start Button */}
         <TouchableOpacity

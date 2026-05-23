@@ -1,0 +1,46 @@
+const IS_DEV = process.env.APP_VARIANT === 'development';
+
+module.exports = {
+  expo: {
+    name: IS_DEV ? 'KneeTracker (Dev)' : 'KneeRecoveryTracker',
+    slug: 'KneeRecoveryTracker',
+    version: '1.0.0',
+    orientation: 'portrait',
+    icon: './assets/icon.png',
+    userInterfaceStyle: 'dark',
+    splash: {
+      image: './assets/splash-icon.png',
+      resizeMode: 'contain',
+      backgroundColor: '#0F0F0F',
+    },
+    ios: {
+      supportsTablet: true,
+    },
+    android: {
+      adaptiveIcon: {
+        backgroundColor: '#0F0F0F',
+        foregroundImage: './assets/android-icon-foreground.png',
+        backgroundImage: './assets/android-icon-background.png',
+        monochromeImage: './assets/android-icon-monochrome.png',
+      },
+      predictiveBackGestureEnabled: false,
+      package: IS_DEV
+        ? 'com.santak05.KneeRecoveryTracker.dev'
+        : 'com.santak05.KneeRecoveryTracker',
+    },
+    web: {
+      favicon: './assets/favicon.png',
+    },
+    extra: {
+      eas: {
+        projectId: 'cd4cc817-91d8-48c6-b17d-5f5a93fbfb7d',
+      },
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
+    updates: {
+      url: 'https://u.expo.dev/cd4cc817-91d8-48c6-b17d-5f5a93fbfb7d',
+    },
+  },
+};
