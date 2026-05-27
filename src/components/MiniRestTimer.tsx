@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useWorkout } from '../context/WorkoutContext';
-import { navigationRef } from '../navigation/RootNavigator';
 import { colors } from '../constants';
 
 function formatTime(sec: number): string {
@@ -10,12 +9,15 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function MiniRestTimer() {
+interface MiniRestTimerProps {
+  currentRoute: string;
+}
+
+export function MiniRestTimer({ currentRoute }: MiniRestTimerProps) {
   const { state, clearActiveRest } = useWorkout();
   const { activeRest } = state;
 
   const [remaining, setRemaining] = useState<number>(0);
-  const [isOnDetail, setIsOnDetail] = useState(false);
   const clearCalledRef = useRef(false);
 
   useEffect(() => {
@@ -29,11 +31,6 @@ export function MiniRestTimer() {
     clearCalledRef.current = false;
 
     const interval = setInterval(() => {
-      // Check current route via ref — safe to call outside navigator tree
-      if (navigationRef.isReady()) {
-        setIsOnDetail(navigationRef.getCurrentRoute()?.name === 'ExerciseDetail');
-      }
-
       const r = Math.max(0, Math.round((activeRest.endsAt - Date.now()) / 1000));
       setRemaining(r);
 
@@ -46,7 +43,7 @@ export function MiniRestTimer() {
     return () => clearInterval(interval);
   }, [activeRest, clearActiveRest]);
 
-  if (!activeRest || isOnDetail) return null;
+  if (!activeRest || currentRoute === 'ExerciseDetail') return null;
 
   return (
     <View style={styles.chip} pointerEvents="box-none">
