@@ -58,7 +58,8 @@ type WorkoutAction =
   | { type: 'ADJUST_ACTIVE_REST'; deltaSec: number }
   | { type: 'PAUSE_SESSION_TIMER'; pausedAt: number }
   | { type: 'RESUME_SESSION_TIMER'; resumedAt: number }
-  | { type: 'DELETE_SESSION'; sessionId: string };
+  | { type: 'DELETE_SESSION'; sessionId: string }
+  | { type: 'EDIT_SET'; setId: string; updates: { weightKg: number | null; reps: number | null; holdSeconds: number | null; note: string } };
 
 function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
   switch (action.type) {
@@ -124,6 +125,21 @@ function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
     case 'DELETE_SESSION':
       return { ...state, sessions: state.sessions.filter(s => s.id !== action.sessionId) };
 
+    case 'EDIT_SET': {
+      if (!state.currentSession) return state;
+      return {
+        ...state,
+        currentSession: {
+          ...state.currentSession,
+          sets: state.currentSession.sets.map(s =>
+            s.id === action.setId
+              ? { ...s, weightKg: action.updates.weightKg, reps: action.updates.reps, holdSeconds: action.updates.holdSeconds, note: action.updates.note }
+              : s
+          ),
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -161,6 +177,7 @@ interface WorkoutContextValue {
   adjustActiveRest:   (deltaSec: number) => void;
   pauseSessionTimer:  () => void;
   resumeSessionTimer: () => void;
+  editSet(setId: string, updates: { weightKg: number | null; reps: number | null; holdSeconds: number | null; note: string }): void;
 }
 
 const WorkoutContext = createContext<WorkoutContextValue | null>(null);
@@ -282,6 +299,18 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'RESUME_SESSION_TIMER', resumedAt: Date.now() });
   }, []);
 
+  const editSet = useCallback((setId: string, updates: { weightKg: number | null; reps: number | null; holdSeconds: number | null; note: string }) => {
+    dispatch({ type: 'EDIT_SET', setId, updates });
+
+    fireAndForget(async () => {
+      const { error } = await supabase
+        .from('session_sets')
+        .update({ weight_kg: updates.weightKg, reps: updates.reps, hold_seconds: updates.holdSeconds, note: updates.note || null })
+        .eq('id', setId);
+      if (error) throw error;
+    });
+  }, []);
+
   const loadHistory = useCallback(async () => {
     const { data, error } = await supabase
       .from('workout_sessions')
@@ -332,7 +361,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkoutContext.Provider
-      value={{ state, selectScheda, startSession, logSet, endSession, deleteSession, loadHistory, startActiveRest, clearActiveRest, adjustActiveRest, pauseSessionTimer, resumeSessionTimer }}
+      value={{ state, selectScheda, startSession, logSet, endSession, deleteSession, loadHistory, startActiveRest, clearActiveRest, adjustActiveRest, pauseSessionTimer, resumeSessionTimer, editSet }}
     >
       {children}
     </WorkoutContext.Provider>

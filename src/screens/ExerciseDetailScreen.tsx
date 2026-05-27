@@ -1,15 +1,15 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../navigation/types';
 import { useWorkout } from '../context/WorkoutContext';
 import { useRestTimer } from '../hooks/useRestTimer';
-import { SetRow } from '../components/SetRow';
+import { SetSlot } from '../components/SetSlot';
 import { RestTimer } from '../components/RestTimer';
 import { getExercisesForScheda, kneeRoutine, formatSetTarget, formatRestRange } from '../data/workoutData';
 import { colors, spacing } from '../constants';
@@ -19,7 +19,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseDetail'>;
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseIndex } = route.params;
   const preview = route.params.preview ?? false;
-  const { state, logSet, startActiveRest, clearActiveRest, adjustActiveRest } = useWorkout();
+  const { state, logSet, startActiveRest, clearActiveRest, adjustActiveRest, editSet } = useWorkout();
   const scheda = state.selectedScheda!;
 
   // Always include knee routine so indices from ExerciseListScreen resolve correctly
@@ -32,18 +32,21 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
 
   // Logged sets for this exercise
   const loggedSets = state.currentSession?.sets.filter(
-    s => s.exerciseName === exercise.name
+    (s: any) => s.exerciseName === exercise.name
   ) ?? [];
 
   const nextSetNumber = loggedSets.length + 1;
   const allDone       = loggedSets.length >= exercise.defaultSets;
 
-  // Form state
+  // Active-set form state
   const [weightInput,  setWeightInput]  = useState('');
   const [repsInput,    setRepsInput]    = useState('');
   const [noteInput,    setNoteInput]    = useState('');
   const [restDuration, setRestDuration] = useState(exercise.restSecMax || 90);
   const [timerVisible, setTimerVisible] = useState(false);
+
+  // Edit state
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
   const onTimerComplete = useCallback(() => {
     setTimerVisible(false);
@@ -113,10 +116,28 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
     clearActiveRest();
   }, [restTimer, clearActiveRest]);
 
+  const handleEditTap = useCallback((setId: string) => {
+    setEditingSetId(prev => (prev === setId ? null : setId));
+  }, []);
+
+  const handleEditSave = useCallback((setId: string, updates: {
+    weightKg: number | null;
+    reps: number | null;
+    holdSeconds: number | null;
+    note: string;
+  }) => {
+    editSet(setId, updates);
+    setEditingSetId(null);
+  }, [editSet]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditingSetId(null);
+  }, []);
+
   if (!exercise) return null;
 
   const isHold  = exercise.variant === 'hold';
-  const repLabel = isHold ? 'Secondi' : exercise.variant === 'reps_per_side' ? 'Reps/lato' : 'Reps';
+  const totalSets = exercise.defaultSets;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -145,16 +166,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
             )}
           </View>
 
-          {/* Logged sets */}
-          {!preview && loggedSets.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Set completati</Text>
-              {loggedSets.map(s => (
-                <SetRow key={s.id} set={s} variant={exercise.variant} />
-              ))}
-            </View>
-          )}
-
           {/* Rest timer */}
           {!preview && timerVisible && (
             <RestTimer
@@ -170,59 +181,80 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
             />
           )}
 
-          {/* Set input form */}
-          {!preview && !allDone && !timerVisible && (
+          {/* All set slots */}
+          {!preview && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Set {nextSetNumber} di {exercise.defaultSets}</Text>
+              <Text style={styles.sectionLabel}>Serie</Text>
+              {Array.from({ length: totalSets }, (_, i) => {
+                const slotNumber = i + 1;
+                const logged = loggedSets.find((s: any) => s.setNumber === slotNumber);
 
-              <View style={styles.inputRow}>
-                {!isHold && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Peso (kg)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={weightInput}
-                      onChangeText={setWeightInput}
-                      placeholder="0"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
+                if (logged) {
+                  if (editingSetId === logged.id) {
+                    return (
+                      <SetSlot
+                        key={logged.id}
+                        slotState="editing"
+                        setNumber={slotNumber}
+                        variant={exercise.variant}
+                        set={logged}
+                        onSave={(updates) => handleEditSave(logged.id, updates)}
+                        onCancel={handleEditCancel}
+                      />
+                    );
+                  }
+                  return (
+                    <SetSlot
+                      key={logged.id}
+                      slotState="logged"
+                      setNumber={slotNumber}
+                      variant={exercise.variant}
+                      set={logged}
+                      onTap={() => handleEditTap(logged.id)}
                     />
-                  </View>
-                )}
-                <View style={[styles.inputGroup, isHold && styles.inputGroupFull]}>
-                  <Text style={styles.inputLabel}>{repLabel}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={repsInput}
-                    onChangeText={setRepsInput}
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="number-pad"
-                    returnKeyType="next"
+                  );
+                }
+
+                // This is the active slot
+                if (slotNumber === nextSetNumber && !allDone) {
+                  if (timerVisible) {
+                    // Timer running — show locked
+                    return (
+                      <SetSlot
+                        key={`slot-${slotNumber}`}
+                        slotState="locked"
+                        setNumber={slotNumber}
+                        variant={exercise.variant}
+                      />
+                    );
+                  }
+                  return (
+                    <SetSlot
+                      key={`slot-${slotNumber}`}
+                      slotState="active"
+                      setNumber={slotNumber}
+                      variant={exercise.variant}
+                      weightInput={weightInput}
+                      repsInput={repsInput}
+                      noteInput={noteInput}
+                      onChangeWeight={setWeightInput}
+                      onChangeReps={setRepsInput}
+                      onChangeNote={setNoteInput}
+                      onLog={handleLogSet}
+                    />
+                  );
+                }
+
+                // Future placeholder
+                return (
+                  <SetSlot
+                    key={`slot-${slotNumber}`}
+                    slotState="future"
+                    setNumber={slotNumber}
+                    variant={exercise.variant}
                   />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Note (opzionale)</Text>
-                <TextInput
-                  style={[styles.input, styles.inputNote]}
-                  value={noteInput}
-                  onChangeText={setNoteInput}
-                  placeholder="es. 40 kg, buona forma..."
-                  placeholderTextColor={colors.textMuted}
-                  returnKeyType="done"
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.logBtn}
-                onPress={handleLogSet}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.logBtnText}>✓  Set Completato</Text>
-              </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -303,57 +335,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   sectionLabel: {
-    fontSize:     13,
-    fontWeight:   '600',
-    color:        colors.textMuted,
-    marginBottom: spacing.sm,
+    fontSize:      13,
+    fontWeight:    '600',
+    color:         colors.textMuted,
+    marginBottom:  spacing.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap:           spacing.sm,
-    marginBottom:  spacing.sm,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  inputGroupFull: {
-    flex: 1,
-  },
-  inputLabel: {
-    fontSize:     12,
-    color:        colors.textMuted,
-    marginBottom: 6,
-    fontWeight:   '500',
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius:    12,
-    paddingHorizontal: spacing.md,
-    paddingVertical:   spacing.sm + 2,
-    fontSize:        17,
-    color:           colors.text,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    minHeight:       48,
-  },
-  inputNote: {
-    width:     '100%',
-    marginBottom: spacing.md,
-  },
-  logBtn: {
-    backgroundColor: colors.accent,
-    borderRadius:    14,
-    paddingVertical: spacing.md,
-    alignItems:      'center',
-    minHeight:       52,
-    justifyContent:  'center',
-  },
-  logBtnText: {
-    fontSize:   17,
-    fontWeight: '700',
-    color:      '#FFFFFF',
   },
   doneCard: {
     backgroundColor: '#0D1F12',
@@ -381,14 +368,14 @@ const styles = StyleSheet.create({
     textAlign:    'center',
   },
   backBtn: {
-    backgroundColor: colors.surface,
-    borderRadius:    12,
-    paddingVertical: spacing.sm,
+    backgroundColor:   colors.surface,
+    borderRadius:      12,
+    paddingVertical:   spacing.sm,
     paddingHorizontal: spacing.xl,
-    borderWidth:     1,
-    borderColor:     colors.border,
-    minHeight:       48,
-    justifyContent:  'center',
+    borderWidth:       1,
+    borderColor:       colors.border,
+    minHeight:         48,
+    justifyContent:    'center',
   },
   backBtnText: {
     fontSize:   15,
@@ -396,52 +383,52 @@ const styles = StyleSheet.create({
     color:      colors.textSecondary,
   },
   previewBadge: {
-    backgroundColor: colors.surfaceHighlight,
-    borderRadius: 8,
+    backgroundColor:   colors.surfaceHighlight,
+    borderRadius:      8,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical:   4,
+    alignSelf:         'flex-start',
+    marginTop:         spacing.sm,
+    borderWidth:       1,
+    borderColor:       colors.border,
   },
   previewBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
+    fontSize:      11,
+    fontWeight:    '600',
+    color:         colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   previewCard: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.lg,
+    borderRadius:    14,
+    padding:         spacing.md,
+    borderWidth:     1,
+    borderColor:     colors.border,
+    marginBottom:    spacing.lg,
   },
   previewCardTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
+    fontSize:      13,
+    fontWeight:    '600',
+    color:         colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: spacing.md,
+    marginBottom:  spacing.md,
   },
   previewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    flexDirection:     'row',
+    justifyContent:    'space-between',
+    paddingVertical:   spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   previewLabel: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color:    colors.textSecondary,
   },
   previewValue: {
-    fontSize: 14,
+    fontSize:   14,
     fontWeight: '600',
-    color: colors.text,
+    color:      colors.text,
   },
 });
