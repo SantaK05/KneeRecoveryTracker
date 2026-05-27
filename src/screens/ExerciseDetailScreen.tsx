@@ -19,7 +19,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseDetail'>;
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseIndex } = route.params;
   const preview = route.params.preview ?? false;
-  const { state, logSet, startActiveRest, clearActiveRest } = useWorkout();
+  const { state, logSet, startActiveRest, clearActiveRest, adjustActiveRest } = useWorkout();
   const scheda = state.selectedScheda!;
 
   // Always include knee routine so indices from ExerciseListScreen resolve correctly
@@ -101,7 +101,11 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
 
   const handleAdjustDuration = useCallback((delta: number) => {
     setRestDuration(prev => Math.max(15, prev + delta));
-  }, []);
+    if (restTimer.isRunning && !restTimer.isPaused) {
+      restTimer.adjust(delta);
+      adjustActiveRest(delta);
+    }
+  }, [restTimer, adjustActiveRest]);
 
   const handleSkip = useCallback(() => {
     restTimer.stop();

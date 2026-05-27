@@ -55,6 +55,7 @@ type WorkoutAction =
   | { type: 'SET_HISTORY'; sessions: HistorySession[] }
   | { type: 'START_ACTIVE_REST'; exerciseIndex: number; endsAt: number }
   | { type: 'CLEAR_ACTIVE_REST' }
+  | { type: 'ADJUST_ACTIVE_REST'; deltaSec: number }
   | { type: 'PAUSE_SESSION_TIMER'; pausedAt: number }
   | { type: 'RESUME_SESSION_TIMER'; resumedAt: number }
   | { type: 'DELETE_SESSION'; sessionId: string };
@@ -106,6 +107,10 @@ function reducer(state: WorkoutState, action: WorkoutAction): WorkoutState {
     case 'CLEAR_ACTIVE_REST':
       return { ...state, activeRest: null };
 
+    case 'ADJUST_ACTIVE_REST':
+      if (!state.activeRest) return state;
+      return { ...state, activeRest: { ...state.activeRest, endsAt: state.activeRest.endsAt + action.deltaSec * 1000 } };
+
     case 'PAUSE_SESSION_TIMER': {
       if (!state.sessionTimer || state.sessionTimer.runningFrom === null) return state;
       const addedMs = action.pausedAt - state.sessionTimer.runningFrom;
@@ -153,6 +158,7 @@ interface WorkoutContextValue {
   loadHistory:     () => Promise<void>;
   startActiveRest:    (exerciseIndex: number, durationSec: number) => void;
   clearActiveRest:    () => void;
+  adjustActiveRest:   (deltaSec: number) => void;
   pauseSessionTimer:  () => void;
   resumeSessionTimer: () => void;
 }
@@ -264,6 +270,10 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_ACTIVE_REST' });
   }, []);
 
+  const adjustActiveRest = useCallback((deltaSec: number) => {
+    dispatch({ type: 'ADJUST_ACTIVE_REST', deltaSec });
+  }, []);
+
   const pauseSessionTimer = useCallback(() => {
     dispatch({ type: 'PAUSE_SESSION_TIMER', pausedAt: Date.now() });
   }, []);
@@ -322,7 +332,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkoutContext.Provider
-      value={{ state, selectScheda, startSession, logSet, endSession, deleteSession, loadHistory, startActiveRest, clearActiveRest, pauseSessionTimer, resumeSessionTimer }}
+      value={{ state, selectScheda, startSession, logSet, endSession, deleteSession, loadHistory, startActiveRest, clearActiveRest, adjustActiveRest, pauseSessionTimer, resumeSessionTimer }}
     >
       {children}
     </WorkoutContext.Provider>
