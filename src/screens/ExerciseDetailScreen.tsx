@@ -18,6 +18,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseDetail'>;
 
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseIndex } = route.params;
+  const preview = route.params.preview ?? false;
   const { state, logSet, startActiveRest, clearActiveRest } = useWorkout();
   const scheda = state.selectedScheda!;
 
@@ -52,6 +53,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
 
   // Restore a running timer if context has one for this exercise
   useEffect(() => {
+    if (preview) return;
     const ar = state.activeRest;
     if (!ar || ar.exerciseIndex !== exerciseIndex) return;
     const remaining = Math.max(0, Math.round((ar.endsAt - Date.now()) / 1000));
@@ -132,10 +134,15 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.notesText}>{exercise.notes}</Text>
               </View>
             ) : null}
+            {preview && (
+              <View style={styles.previewBadge}>
+                <Text style={styles.previewBadgeText}>ANTEPRIMA — nessun dato verrà registrato</Text>
+              </View>
+            )}
           </View>
 
           {/* Logged sets */}
-          {loggedSets.length > 0 && (
+          {!preview && loggedSets.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Set completati</Text>
               {loggedSets.map(s => (
@@ -145,7 +152,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
           )}
 
           {/* Rest timer */}
-          {timerVisible && (
+          {!preview && timerVisible && (
             <RestTimer
               formattedTime={restTimer.formattedTime}
               isRunning={restTimer.isRunning}
@@ -160,7 +167,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
           )}
 
           {/* Set input form */}
-          {!allDone && !timerVisible && (
+          {!preview && !allDone && !timerVisible && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Set {nextSetNumber} di {exercise.defaultSets}</Text>
 
@@ -216,7 +223,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
           )}
 
           {/* All sets done */}
-          {allDone && !timerVisible && (
+          {!preview && allDone && !timerVisible && (
             <View style={styles.doneCard}>
               <Text style={styles.doneEmoji}>🎯</Text>
               <Text style={styles.doneTitle}>Esercizio Completato!</Text>
@@ -228,6 +235,25 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
               >
                 <Text style={styles.backBtnText}>← Torna alla lista</Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Preview summary card */}
+          {preview && (
+            <View style={styles.previewCard}>
+              <Text style={styles.previewCardTitle}>Struttura dell'esercizio</Text>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Serie</Text>
+                <Text style={styles.previewValue}>{exercise.defaultSets}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>{exercise.variant === 'hold' ? 'Durata' : 'Ripetizioni'}</Text>
+                <Text style={styles.previewValue}>{formatSetTarget(exercise)}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Riposo</Text>
+                <Text style={styles.previewValue}>{formatRestRange(exercise)}</Text>
+              </View>
             </View>
           )}
         </ScrollView>
@@ -364,5 +390,54 @@ const styles = StyleSheet.create({
     fontSize:   15,
     fontWeight: '600',
     color:      colors.textSecondary,
+  },
+  previewBadge: {
+    backgroundColor: colors.surfaceHighlight,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  previewCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  previewCardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  previewLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  previewValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
 });

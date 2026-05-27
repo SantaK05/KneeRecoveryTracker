@@ -20,20 +20,21 @@ function formatHHMMSS(sec: number): string {
   return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
 }
 
-export function ExerciseListScreen({ navigation }: Props) {
-  const { state, pauseSessionTimer, resumeSessionTimer } = useWorkout();
+export function ExerciseListScreen({ route, navigation }: Props) {
+  const preview = route.params?.preview ?? false;
+  const { state, startSession, pauseSessionTimer, resumeSessionTimer } = useWorkout();
   const scheda = state.selectedScheda!;
   const isUpperBody = !['B', 'D'].includes(scheda);
   const activeRest   = state.activeRest;
   const sessionTimer = state.sessionTimer;
 
-  // Re-render every second while timer is running
+  // Re-render every second while timer is running (skip in preview mode)
   const [, setTick] = useState(0);
   useEffect(() => {
-    if (!sessionTimer?.runningFrom) return;
+    if (preview || !sessionTimer?.runningFrom) return;
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
-  }, [sessionTimer?.runningFrom]);
+  }, [preview, sessionTimer?.runningFrom]);
 
   const sessionIsRunning = sessionTimer !== null && sessionTimer.runningFrom !== null;
   const sessionElapsedMs = sessionTimer
@@ -66,7 +67,7 @@ export function ExerciseListScreen({ navigation }: Props) {
     return (
       <TouchableOpacity
         style={[styles.row, done && styles.rowDone]}
-        onPress={() => navigation.navigate('ExerciseDetail', { exerciseIndex: index })}
+        onPress={() => navigation.navigate('ExerciseDetail', { exerciseIndex: index, preview })}
         activeOpacity={0.75}
       >
         <View style={styles.rowLeft}>
@@ -86,7 +87,9 @@ export function ExerciseListScreen({ navigation }: Props) {
           </View>
         </View>
         <View style={styles.progressBadge}>
-          <Text style={styles.progressText}>{logged}/{item.defaultSets}</Text>
+          <Text style={styles.progressText}>
+            {preview ? `${item.defaultSets} set` : `${logged}/${item.defaultSets}`}
+          </Text>
         </View>
       </TouchableOpacity>
     );
@@ -101,17 +104,19 @@ export function ExerciseListScreen({ navigation }: Props) {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View>
-            <TouchableOpacity style={styles.timerCard} onPress={toggleTimer} activeOpacity={0.8}>
-              <Text style={styles.timerLabel}>
-                {sessionIsRunning ? 'Sessione in corso' : 'Sessione in pausa'}
-              </Text>
-              <Text style={styles.timerValue}>{sessionFormattedTime}</Text>
-              <View style={[styles.timerIndicator, sessionIsRunning && styles.timerActive]} />
-            </TouchableOpacity>
-            {activeRest && (
+            {!preview && (
+              <TouchableOpacity style={styles.timerCard} onPress={toggleTimer} activeOpacity={0.8}>
+                <Text style={styles.timerLabel}>
+                  {sessionIsRunning ? 'Sessione in corso' : 'Sessione in pausa'}
+                </Text>
+                <Text style={styles.timerValue}>{sessionFormattedTime}</Text>
+                <View style={[styles.timerIndicator, sessionIsRunning && styles.timerActive]} />
+              </TouchableOpacity>
+            )}
+            {!preview && activeRest && (
               <TouchableOpacity
                 style={styles.restBanner}
-                onPress={() => navigation.navigate('ExerciseDetail', { exerciseIndex: activeRest.exerciseIndex })}
+                onPress={() => navigation.navigate('ExerciseDetail', { exerciseIndex: activeRest.exerciseIndex, preview })}
                 activeOpacity={0.8}
               >
                 <View style={styles.restBannerLeft}>
@@ -131,7 +136,7 @@ export function ExerciseListScreen({ navigation }: Props) {
         }
         ListFooterComponent={
           <View style={styles.footer}>
-            {isUpperBody && !showKneeRoutine && (
+            {!preview && isUpperBody && !showKneeRoutine && (
               <TouchableOpacity
                 style={styles.kneeBtn}
                 onPress={() => setShowKneeRoutine(true)}
@@ -140,12 +145,24 @@ export function ExerciseListScreen({ navigation }: Props) {
                 <Text style={styles.kneeBtnSub}>12–15 min · esercizi di riabilitazione</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={styles.endBtn}
-              onPress={() => navigation.navigate('Feedback')}
-            >
-              <Text style={styles.endBtnText}>Termina Allenamento</Text>
-            </TouchableOpacity>
+            {!preview ? (
+              <TouchableOpacity
+                style={styles.endBtn}
+                onPress={() => navigation.navigate('Feedback')}
+              >
+                <Text style={styles.endBtnText}>Termina Allenamento</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.startFromPreviewBtn}
+                onPress={() => {
+                  startSession(scheda);
+                  navigation.replace('ExerciseList');
+                }}
+              >
+                <Text style={styles.startFromPreviewBtnText}>Inizia Allenamento →</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
@@ -356,5 +373,18 @@ const styles = StyleSheet.create({
     fontSize:   14,
     fontWeight: '600',
     color:      colors.accent,
+  },
+  startFromPreviewBtn: {
+    backgroundColor: colors.accent,
+    borderRadius:    14,
+    paddingVertical: spacing.md,
+    alignItems:      'center',
+    minHeight:       52,
+    justifyContent:  'center',
+  },
+  startFromPreviewBtnText: {
+    fontSize:   16,
+    fontWeight: '700',
+    color:      '#FFFFFF',
   },
 });

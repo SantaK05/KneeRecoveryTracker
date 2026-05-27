@@ -2,8 +2,8 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type HomeStackParamList = {
   Home:           undefined;
-  ExerciseList:   undefined;
-  ExerciseDetail: { exerciseIndex: number };
+  ExerciseList:   { preview?: boolean };
+  ExerciseDetail: { exerciseIndex: number; preview?: boolean };
   Feedback:       undefined;
 };
 
