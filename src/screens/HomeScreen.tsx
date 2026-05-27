@@ -99,16 +99,6 @@ export function HomeScreen({ navigation }: Props) {
         >
           <Text style={styles.startBtnText}>Inizia Allenamento →</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.previewBtn, !state.selectedScheda && styles.previewBtnDisabled]}
-          onPress={() => state.selectedScheda && navigation.navigate('ExerciseList', { preview: true })}
-          disabled={!state.selectedScheda}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.previewBtnText, !state.selectedScheda && styles.previewBtnTextDisabled]}>
-            Vedi Dettagli →
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -170,28 +160,6 @@ const styles = StyleSheet.create({
     fontSize:   17,
     fontWeight: '700',
     color:      '#FFFFFF',
-  },
-  previewBtn: {
-    backgroundColor: 'transparent',
-    borderRadius:    16,
-    paddingVertical: spacing.md + 4,
-    alignItems:      'center',
-    minHeight:       56,
-    justifyContent:  'center',
-    borderWidth:     1.5,
-    borderColor:     colors.accent,
-    marginTop:       spacing.sm,
-  },
-  previewBtnDisabled: {
-    borderColor: colors.border,
-  },
-  previewBtnText: {
-    fontSize:   16,
-    fontWeight: '600',
-    color:      colors.accent,
-  },
-  previewBtnTextDisabled: {
-    color: colors.textMuted,
   },
   resumeCard: {
     flexDirection:   'row',
