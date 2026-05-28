@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
 } from 'react-native';
@@ -23,6 +23,7 @@ interface EditingProps extends BaseProps {
   set: SetRecord;
   onSave: (updates: { weightKg: number | null; reps: number | null; holdSeconds: number | null; note: string }) => void;
   onCancel: () => void;
+  prevSet?: SetRecord | null;
 }
 
 interface ActiveProps extends BaseProps {
@@ -34,6 +35,7 @@ interface ActiveProps extends BaseProps {
   onChangeReps: (v: string) => void;
   onChangeNote: (v: string) => void;
   onLog: () => void;
+  prevSet?: SetRecord | null;
 }
 
 interface LockedProps extends BaseProps {
@@ -48,7 +50,9 @@ type Props = LoggedProps | EditingProps | ActiveProps | LockedProps | FutureProp
 
 function formatValue(set: SetRecord, variant: ExerciseVariant): string {
   if (variant === 'hold') {
-    return set.holdSeconds != null ? `${set.holdSeconds}s` : '—';
+    const secStr = set.holdSeconds != null ? `${set.holdSeconds}s` : '—';
+    const kgStr  = set.weightKg != null ? ` · ${set.weightKg} kg` : '';
+    return `${secStr}${kgStr}`;
   }
   const repStr = set.reps != null
     ? `${set.reps}${variant === 'reps_per_side' ? '/lato' : ''} reps`
@@ -77,6 +81,21 @@ export function SetSlot(props: Props) {
     slotState === 'editing' ? props.set.note : ''
   );
 
+  // Sync edit fields whenever the slot transitions into editing state
+  useEffect(() => {
+    if (slotState === 'editing') {
+      const p = props as EditingProps;
+      setEditWeight(p.set.weightKg != null ? String(p.set.weightKg) : '');
+      setEditReps(
+        isHold
+          ? (p.set.holdSeconds != null ? String(p.set.holdSeconds) : '')
+          : (p.set.reps != null ? String(p.set.reps) : '')
+      );
+      setEditNote(p.set.note ?? '');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotState]);
+
   // ── Logged (read-only, tappable) ────────────────────────────────────────────
   if (slotState === 'logged') {
     const { set, onTap } = props as LoggedProps;
@@ -96,13 +115,13 @@ export function SetSlot(props: Props) {
 
   // ── Editing (inline edit form) ──────────────────────────────────────────────
   if (slotState === 'editing') {
-    const { onSave, onCancel } = props as EditingProps;
+    const { onSave, onCancel, prevSet } = props as EditingProps;
 
     const handleSave = () => {
       const weight = editWeight.trim() ? parseFloat(editWeight) : null;
       const repsOrHold = editReps.trim() ? parseInt(editReps, 10) : null;
       onSave({
-        weightKg:    isHold ? null : weight,
+        weightKg:    weight,
         reps:        isHold ? null : repsOrHold,
         holdSeconds: isHold ? repsOrHold : null,
         note:        editNote.trim(),
@@ -116,31 +135,47 @@ export function SetSlot(props: Props) {
         </View>
         <View style={styles.editForm}>
           <View style={styles.inputRow}>
-            {!isHold && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Peso (kg)</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Peso (kg)</Text>
+              <View style={styles.inputWithChip}>
+                  <TextInput
+                    style={[styles.input, styles.inputFlex]}
+                    value={editWeight}
+                    onChangeText={setEditWeight}
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="decimal-pad"
+                    returnKeyType="next"
+                  />
+                  {prevSet?.weightKg != null && (
+                    <View style={styles.prevChip}>
+                      <Text style={styles.prevChipLabel}>prec.</Text>
+                      <Text style={styles.prevChipValue}>{prevSet.weightKg} kg</Text>
+                    </View>
+                  )}
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{repLabel}</Text>
+              <View style={styles.inputWithChip}>
                 <TextInput
-                  style={styles.input}
-                  value={editWeight}
-                  onChangeText={setEditWeight}
+                  style={[styles.input, styles.inputFlex]}
+                  value={editReps}
+                  onChangeText={setEditReps}
                   placeholder="0"
                   placeholderTextColor={colors.textMuted}
-                  keyboardType="decimal-pad"
+                  keyboardType="number-pad"
                   returnKeyType="next"
                 />
+                {(isHold ? prevSet?.holdSeconds != null : prevSet?.reps != null) && (
+                  <View style={styles.prevChip}>
+                    <Text style={styles.prevChipLabel}>prec.</Text>
+                    <Text style={styles.prevChipValue}>
+                      {isHold ? `${prevSet!.holdSeconds}s` : `${prevSet!.reps}`}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-            <View style={[styles.inputGroup, isHold && styles.inputGroupFull]}>
-              <Text style={styles.inputLabel}>{repLabel}</Text>
-              <TextInput
-                style={styles.input}
-                value={editReps}
-                onChangeText={setEditReps}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="number-pad"
-                returnKeyType="next"
-              />
             </View>
           </View>
           <View style={styles.inputGroup}>
@@ -169,7 +204,7 @@ export function SetSlot(props: Props) {
 
   // ── Active (next-set input form) ─────────────────────────────────────────────
   if (slotState === 'active') {
-    const { weightInput, repsInput, noteInput, onChangeWeight, onChangeReps, onChangeNote, onLog } = props as ActiveProps;
+    const { weightInput, repsInput, noteInput, onChangeWeight, onChangeReps, onChangeNote, onLog, prevSet } = props as ActiveProps;
     return (
       <View style={[styles.row, styles.rowActive]}>
         <View style={[styles.badge, styles.badgeActive]}>
@@ -177,31 +212,47 @@ export function SetSlot(props: Props) {
         </View>
         <View style={styles.editForm}>
           <View style={styles.inputRow}>
-            {!isHold && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Peso (kg)</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Peso (kg)</Text>
+              <View style={styles.inputWithChip}>
+                  <TextInput
+                    style={[styles.input, styles.inputFlex]}
+                    value={weightInput}
+                    onChangeText={onChangeWeight}
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="decimal-pad"
+                    returnKeyType="next"
+                  />
+                  {prevSet?.weightKg != null && (
+                    <View style={styles.prevChip}>
+                      <Text style={styles.prevChipLabel}>prec.</Text>
+                      <Text style={styles.prevChipValue}>{prevSet.weightKg} kg</Text>
+                    </View>
+                  )}
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{repLabel}</Text>
+              <View style={styles.inputWithChip}>
                 <TextInput
-                  style={styles.input}
-                  value={weightInput}
-                  onChangeText={onChangeWeight}
+                  style={[styles.input, styles.inputFlex]}
+                  value={repsInput}
+                  onChangeText={onChangeReps}
                   placeholder="0"
                   placeholderTextColor={colors.textMuted}
-                  keyboardType="decimal-pad"
+                  keyboardType="number-pad"
                   returnKeyType="next"
                 />
+                {(isHold ? prevSet?.holdSeconds != null : prevSet?.reps != null) && (
+                  <View style={styles.prevChip}>
+                    <Text style={styles.prevChipLabel}>prec.</Text>
+                    <Text style={styles.prevChipValue}>
+                      {isHold ? `${prevSet!.holdSeconds}s` : `${prevSet!.reps}`}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-            <View style={[styles.inputGroup, isHold && styles.inputGroupFull]}>
-              <Text style={styles.inputLabel}>{repLabel}</Text>
-              <TextInput
-                style={styles.input}
-                value={repsInput}
-                onChangeText={onChangeReps}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="number-pad"
-                returnKeyType="next"
-              />
             </View>
           </View>
           <View style={styles.inputGroup}>
@@ -372,6 +423,33 @@ const styles = StyleSheet.create({
   inputNote: {
     width:        '100%',
     marginBottom: spacing.sm,
+  },
+  inputWithChip: {
+    flexDirection: 'row',
+    alignItems:    'flex-end',
+    gap:           spacing.xs,
+  },
+  inputFlex: {
+    flex: 1,
+  },
+  prevChip: {
+    backgroundColor:   colors.surfaceHighlight,
+    borderWidth:       1,
+    borderColor:       colors.border,
+    borderRadius:      8,
+    paddingHorizontal: 8,
+    paddingVertical:   4,
+    alignItems:        'center',
+    marginBottom:      1,
+  },
+  prevChipLabel: {
+    fontSize: 10,
+    color:    colors.textMuted,
+  },
+  prevChipValue: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      colors.textSecondary,
   },
   logBtn: {
     backgroundColor: colors.accent,

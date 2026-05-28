@@ -35,6 +35,15 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
     (s: any) => s.exerciseName === exercise.name
   ) ?? [];
 
+  // Previous session sets for reference chips
+  const prevExerciseSets = useMemo(() => {
+    for (const session of state.sessions) {
+      const sets = session.sets.filter((s: any) => s.exerciseName === exercise.name);
+      if (sets.length > 0) return sets;
+    }
+    return [];
+  }, [state.sessions, exercise.name]);
+
   const nextSetNumber = loggedSets.length + 1;
   const allDone       = loggedSets.length >= exercise.defaultSets;
 
@@ -79,7 +88,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
     logSet({
       exerciseName: exercise.name,
       setNumber:    nextSetNumber,
-      weightKg:     exercise.variant === 'hold' ? null : weight,
+      weightKg:     weight,
       reps:         exercise.variant === 'hold' ? null : repsOrHold,
       holdSeconds:  exercise.variant === 'hold' ? repsOrHold : null,
       note:         noteInput.trim(),
@@ -200,6 +209,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                         set={logged}
                         onSave={(updates) => handleEditSave(logged.id, updates)}
                         onCancel={handleEditCancel}
+                        prevSet={prevExerciseSets.find((s: any) => s.setNumber === slotNumber) ?? null}
                       />
                     );
                   }
@@ -241,6 +251,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                       onChangeReps={setRepsInput}
                       onChangeNote={setNoteInput}
                       onLog={handleLogSet}
+                      prevSet={prevExerciseSets.find((s: any) => s.setNumber === slotNumber) ?? null}
                     />
                   );
                 }
