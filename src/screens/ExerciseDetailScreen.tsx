@@ -11,7 +11,7 @@ import { useWorkout } from '../context/WorkoutContext';
 import { useRestTimer } from '../hooks/useRestTimer';
 import { SetSlot } from '../components/SetSlot';
 import { RestTimer } from '../components/RestTimer';
-import { getExercisesForScheda, kneeRoutine, formatSetTarget, formatRestRange } from '../data/workoutData';
+import { getExercisesForScheda, kneeRoutine, formatSetTarget, formatRestRange, schedaDProgression, painManagementRule } from '../data/workoutData';
 import { colors, spacing } from '../constants';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ExerciseDetail'>;
@@ -173,6 +173,51 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.previewBadgeText}>ANTEPRIMA — nessun dato verrà registrato</Text>
               </View>
             )}
+
+            {/* Leg Extension Version Logic */}
+            {exercise.name === 'Leg extension terapeutica al posto dello squat – versione A' && (
+              <View style={styles.versionLogic}>
+                <Text style={styles.versionLogicTitle}>🔴 Quando usare SOLO questa versione:</Text>
+                <Text style={styles.versionLogicText}>• Ginocchio impastato al mattino</Text>
+                <Text style={styles.versionLogicText}>• Fastidio dopo seduta prolungata</Text>
+                <Text style={styles.versionLogicText}>{'• Dolore > 2/10 nel warm-up'}</Text>
+              </View>
+            )}
+            {exercise.name === 'Leg extension terapeutica al posto dello squat – versione B' && (
+              <View style={styles.versionLogic}>
+                <Text style={styles.versionLogicTitle}>🟢 Quando puoi usare questa versione:</Text>
+                <Text style={styles.versionLogicText}>• Warm-up è stato ok</Text>
+                <Text style={styles.versionLogicText}>• Dolore 0–2/10</Text>
+                <Text style={styles.versionLogicText}>• Nessun flare dalla seduta precedente (24h)</Text>
+              </View>
+            )}
+
+            {/* Pain Management Rule */}
+            <View style={styles.painRule}>
+              <Text style={styles.painRuleTitle}>📊 Regola Dolore — Guida Progressione</Text>
+              <View style={styles.painTable}>
+                <View style={styles.painTableRow}>
+                  <Text style={styles.painTableHeader}>Dolore</Text>
+                  <Text style={[styles.painTableHeader, { flex: 2 }]}>Azione</Text>
+                </View>
+                <View style={[styles.painTableRow, styles.painTableRowAlt]}>
+                  <Text style={styles.painTableKey}>0–2/10</Text>
+                  <Text style={[styles.painTableValue, { flex: 2 }]}>Procedi. +1–2 reps, +2,5–5% carico, o +1 set</Text>
+                </View>
+                <View style={styles.painTableRow}>
+                  <Text style={styles.painTableKey}>3/10</Text>
+                  <Text style={[styles.painTableValue, { flex: 2 }]}>Se migliora durante serie: mantieni 1 sett.</Text>
+                </View>
+                <View style={[styles.painTableRow, styles.painTableRowAlt]}>
+                  <Text style={styles.painTableKey}>≥4/10</Text>
+                  <Text style={[styles.painTableValue, { flex: 2, color: colors.error }]}>Stop/regressione immediata</Text>
+                </View>
+                <View style={styles.painTableRow}>
+                  <Text style={styles.painTableKey}>Giorno dopo</Text>
+                  <Text style={[styles.painTableValue, { flex: 2 }]}>Se peggiora: riduci 25–50% per 3–7 giorni</Text>
+                </View>
+              </View>
+            </View>
           </View>
 
           {/* Rest timer */}
@@ -336,11 +381,78 @@ const styles = StyleSheet.create({
     padding:         spacing.sm,
     borderLeftWidth: 3,
     borderLeftColor: colors.accent,
+    marginTop:       spacing.sm,
   },
   notesText: {
     fontSize:   13,
     color:      colors.textSecondary,
     lineHeight: 18,
+  },
+  versionLogic: {
+    backgroundColor: colors.surface,
+    borderRadius:    10,
+    padding:         spacing.sm,
+    marginTop:       spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  versionLogicTitle: {
+    fontSize:     13,
+    fontWeight:   '600',
+    color:        colors.text,
+    marginBottom: spacing.xs,
+  },
+  versionLogicText: {
+    fontSize:     12,
+    color:        colors.textSecondary,
+    marginBottom: 4,
+    lineHeight:   16,
+  },
+  painRule: {
+    backgroundColor: colors.surfaceHighlight,
+    borderRadius:    10,
+    padding:         spacing.md,
+    marginTop:       spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  painRuleTitle: {
+    fontSize:     14,
+    fontWeight:   '600',
+    color:        colors.text,
+    marginBottom: spacing.sm,
+  },
+  painTable: {
+    backgroundColor: colors.surface,
+    borderRadius:    8,
+    overflow:        'hidden',
+  },
+  painTableRow: {
+    flexDirection:  'row',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  painTableRowAlt: {
+    backgroundColor: colors.surfaceHighlight + '40',
+  },
+  painTableHeader: {
+    fontSize:     12,
+    fontWeight:   '600',
+    color:        colors.textMuted,
+    flex:         1,
+  },
+  painTableKey: {
+    fontSize:     12,
+    fontWeight:   '500',
+    color:        colors.text,
+    flex:         1,
+  },
+  painTableValue: {
+    fontSize:     11,
+    color:        colors.textSecondary,
+    lineHeight:   14,
   },
   section: {
     marginBottom: spacing.lg,

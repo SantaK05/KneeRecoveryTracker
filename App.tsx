@@ -4,8 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WorkoutProvider } from './src/context/WorkoutContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { useAppUpdate } from './src/hooks/useAppUpdate';
 
-export default function App() {
+function AppContent() {
+  useAppUpdate();
   return (
     <SafeAreaProvider>
       <WorkoutProvider>
@@ -14,4 +16,8 @@ export default function App() {
       </WorkoutProvider>
     </SafeAreaProvider>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }
